@@ -1,0 +1,140 @@
+#include <Wire.h>
+#include <Tlc5940.h>
+
+int seconds, minutes, hours;
+int iNumber = 0;
+long lTime = 0;
+int iBrightness = 2048;
+boolean bDisplayFirstDigit = true;
+boolean bDigitSegments[10][8] = {  
+  {
+    0,1,1,1,1,1,1,0          }
+  ,
+  {
+    0,0,0,1,1,0,0,0          }
+  ,
+  {
+    1,0,1,1,0,1,1,0          }
+  ,
+  {
+    1,0,1,1,1,1,0,0          }
+  ,
+  {
+    1,1,0,1,1,0,0,0          }
+  ,
+  {
+    1,1,1,0,1,1,0,0          }
+  ,
+  {
+    1,1,1,0,1,1,1,0          }
+  ,
+  {
+    0,0,1,1,1,0,0,0          }
+  ,
+  {
+    1,1,1,1,1,1,1,0          }
+  ,
+  {
+    1,1,1,1,1,1,0,0          }  
+};
+
+void setup()
+{
+  Wire.begin();
+  Tlc.init(0);
+  pinMode(0, OUTPUT);
+  pinMode(1, OUTPUT);
+  pinMode(2, OUTPUT);
+  
+  /* FOR SETTING THE TIME AND DATE 
+  // Open I2C line in write mode
+  Wire.beginTransmission(0x68);
+  // Set the register pointer to (0x00)
+  Wire.write((byte)0x00);
+  // Set the seconds to zero.
+  Wire.write(decToBcd(00));
+  // Set the minutes to zero.
+  Wire.write(decToBcd(42));
+  // Set the hours to zero.
+  Wire.write(decToBcd(18));
+  // Set the weekDay to Sunday.
+  Wire.write(decToBcd(1));
+  // Set the monthsDay to one.
+  Wire.write(decToBcd(1));
+  // Set the months to July. (July and August both have 31 days, therefore calculating weeks between the two makes life easy.
+  Wire.write(decToBcd(7));
+  // Set the year to 2001. (No leap-year).
+  Wire.write(decToBcd(1));
+  // End Write Transmission
+  Wire.endTransmission();
+  */
+}
+
+void loop()
+{
+  // Open I2C line in write mode
+  Wire.beginTransmission(0x68);
+  // Set the register pointer to (0x00)
+  Wire.write((byte)0x00);
+  // End Write Transmission
+  Wire.endTransmission();
+
+  // Open the I2C line in send mode
+  Wire.requestFrom(0x68, 6);
+
+  // Read the seconds from the first byte. (Mask to 0x7f).
+  seconds = bcdToDec(Wire.read() & 0x7f);
+  // Read the minutes from the second byte.
+  minutes = bcdToDec(Wire.read());
+  // Read the hours from the third byte. (Mask to 0x3f).
+  hours = bcdToDec(Wire.read() & 0x3f);
+  
+  if (hours > 12) hours -= 12;
+  if (iNumber == 0){
+    if(hours < 10) bDisplayFirstDigit = false;
+    else bDisplayFirstDigit = true;
+    setNumber((hours - hours%10)/10, hours%10);
+  }
+  if (iNumber == 1)setNumber((minutes - minutes%10)/10, minutes%10);
+  if (iNumber == 2)setNumber((seconds - seconds%10)/10, seconds%10);
+  Tlc.set(14, iBrightness/8);
+  //Tlc.set(15, iBrightness/8);
+  lTime = millis();
+  digitalWrite(iNumber, LOW);
+  Tlc.update();
+  while(millis() - lTime < 4){
+  }
+  
+  resetAnodes();
+  Tlc.clear();
+  
+  iNumber ++;
+  if (iNumber > 2) iNumber = 0;
+  
+  bDisplayFirstDigit = true;
+
+}
+void resetAnodes(){
+  digitalWrite(0, HIGH);
+  digitalWrite(1, HIGH);
+  digitalWrite(2, HIGH);
+}
+byte bcdToDec(byte val)
+{
+  return ( (val / 16 * 10) + (val % 16) );
+}
+
+byte decToBcd(byte val) {
+  return ((val/10*16) + (val%10));
+}
+
+void setNumber(int iNum1, int iNum2){
+  for(int i = 0; i < 4; i ++){
+    Tlc.set(i + 0, bDigitSegments[iNum1][i] * iBrightness * bDisplayFirstDigit); 
+    Tlc.set(i + 4, bDigitSegments[iNum2][i] * iBrightness); 
+  }
+  for(int i = 0; i < 3; i ++){
+    Tlc.set(i + 11, bDigitSegments[iNum1][i + 4] * iBrightness * bDisplayFirstDigit); 
+    Tlc.set(i + 8, bDigitSegments[iNum2][i + 4] * iBrightness);
+  }
+}
